@@ -18,6 +18,7 @@ using System.Globalization;
 using Unity.VisualScripting;
 using TMPro;
 using UnityEngine.UI;
+using Random = System.Random;
 
 namespace MapVote {
     [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
@@ -51,6 +52,7 @@ namespace MapVote {
         public static ConfigEntry<int> VotingTime;
         public static ConfigEntry<bool> HideInMenu;
         public static ConfigEntry<bool> NoRepeatedMaps;
+        public static ConfigEntry<int> VoteableLevelNumber;
 
         // Vote Data
         public static VotesDictionary CurrentVotes = new() { };
@@ -126,6 +128,7 @@ namespace MapVote {
             VotingTime = Config.Bind("General", "Voting Time", 10, new ConfigDescription("The amount of seconds until the voting ends, after the first player voted.", new AcceptableValueRange<int>(3, 30)));
             HideInMenu = Config.Bind("General", "Hide in Menu", false, new ConfigDescription("When true - hides the Menu in the lobby menu and randomly selects a random map - Voting is still enabled in the truck"));
             NoRepeatedMaps = Config.Bind("General", "No Repeated Maps", false, new ConfigDescription("When true - disallows votes for the most recently played map - You won't play the same map twice in a row"));
+            VoteableLevelNumber = Config.Bind("General", "Number of voteable levels", 0, new ConfigDescription("The number of levels that can be voted for. 0 = all levels", new AcceptableValueRange<int>(0, 10)));
 
             CompatibilityPatches.RunPatches(Chainloader.PluginInfos.Select(x => (x.Key)).ToList());
 
@@ -323,8 +326,26 @@ namespace MapVote {
             VotePopup = MenuAPI.CreateREPOPopupPage("Next map", true, !isInMenu, 0f, isInMenu ? new Vector2(40f, 0f) : new Vector2(-100f,0f));
             var runManger = FindObjectOfType<RunManager>();
 
-            var levels = runManger.levels;
-
+            var actualLevelNumber = runManger.levels.Count < VoteableLevelNumber.Value ? runManger.levels.Count : VoteableLevelNumber.Value;
+            var levelIndexes = new List<int>();
+            var totalLevels = runManger.levels.Count;
+            for (var i = 0; i < totalLevels; i++)
+            {
+                levelIndexes.Add(i);
+            }
+            
+            var random = new Random();
+            for (var i = levelIndexes.Count - 1; i > 0; i--)
+            {
+                var randomIndex = random.Next(0, i + 1);
+                (levelIndexes[i], levelIndexes[randomIndex]) = (levelIndexes[randomIndex], levelIndexes[i]);
+            }
+            
+            var selectedIndexes = levelIndexes.Take(actualLevelNumber).ToArray();
+            var levelNumber = VoteableLevelNumber.Value > 0 ? VoteableLevelNumber.Value.ToString() : "all";
+            Logger.LogMessage($"Starting a vote for {levelNumber} levels");
+            var levels = VoteableLevelNumber.Value > 0 ? runManger.levels.Where(l => runManger.levels.IndexOf(l) >= 0 && selectedIndexes.Contains(runManger.levels.IndexOf(l))).ToList() : runManger.levels;
+            
             // Generate Vote Options from Levels
             foreach (var (level, index) in levels.Select((level, index) => (level, index)))
             {

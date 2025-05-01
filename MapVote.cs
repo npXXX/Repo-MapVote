@@ -347,7 +347,7 @@ namespace MapVote {
             var totalLevels = runManager.levels.Count;
             for (var i = 0; i < totalLevels; i++)
             {
-                levelIndexes.Add(i);
+                if (!HasBeenLastPlayed(runManager.levels[i].name)) levelIndexes.Add(i);
             }
             
             var random = new Random();
@@ -383,6 +383,7 @@ namespace MapVote {
             {
                 if (CurrentVoteLevels.Count != VoteableLevelNumber.Value)
                 {
+                    CurrentVotes.Values.Clear();
                     CurrentVoteLevels = GetLevels().Select(x => x.name).ToList();
                     Logger.LogMessage($"{CurrentVoteLevels.Count} random maps selected, sending to clients");
                 }
@@ -413,7 +414,7 @@ namespace MapVote {
         {
             var runManager = FindObjectOfType<RunManager>();
             var levels = GetLevels(false);
-            levels.AddRange(runManager.levels.Where(l => !CurrentVoteLevels.Contains(l.name)));;
+            levels.AddRange(runManager.levels.Where(l => !CurrentVoteLevels.Contains(l.name)));
             VotePopup = MenuAPI.CreateREPOPopupPage("Next map", true, !isInMenu, 0f, isInMenu ? new Vector2(40f, 0f) : new Vector2(-100f,0f));
             // Generate Vote Options from Levels
             var counter = 0;

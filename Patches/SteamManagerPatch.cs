@@ -15,10 +15,7 @@ namespace MapVote.Patches
             {
                 MapVote.OnSyncVotes?.RaiseEvent(MapVote.CurrentVotes.Values, NetworkingEvents.RaiseAll, SendOptions.SendReliable);
                 MapVote.OnSyncLastMapPlayed?.RaiseEvent(MapVote.LastMapPlayed, NetworkingEvents.RaiseOthers, SendOptions.SendReliable);
-            }
-            else
-            {
-                MapVote.OnPlayerConnected?.RaiseEvent("", NetworkingEvents.RaiseAll, SendOptions.SendReliable);
+                MapVote.HandleOnPlayerConnected(new EventData(){customData = MapVote.CurrentVoteLevels.ToArray()});
             }
         }
     }

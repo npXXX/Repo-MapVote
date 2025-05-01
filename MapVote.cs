@@ -187,7 +187,7 @@ namespace MapVote {
             UpdateButtonLabels();
         }
 
-        private static void HandleOnPlayerConnected(EventData data)
+        public static void HandleOnPlayerConnected(EventData data)
         {
             if (SemiFunc.IsMasterClientOrSingleplayer())
             {
@@ -379,19 +379,16 @@ namespace MapVote {
                 GameDirector.instance.DisableInput = true;
             }
             
-            var runManager = FindObjectOfType<RunManager>();
             if (SemiFunc.IsMasterClientOrSingleplayer())
             {
-                if (CurrentVoteLevels.Count <= 0)
+                if (CurrentVoteLevels.Count != VoteableLevelNumber.Value)
                 {
-                    var levels = GetLevels();
-                    CurrentVoteLevels = levels.Select(x => x.name).ToList();
+                    CurrentVoteLevels = GetLevels().Select(x => x.name).ToList();
                     Logger.LogMessage($"{CurrentVoteLevels.Count} random maps selected, sending to clients");
                 }
                 else
                 {
-                    var levels = GetLevels(false);
-                    CurrentVoteLevels = levels.Select(x => x.name).ToList();
+                    CurrentVoteLevels = GetLevels(false).Select(x => x.name).ToList();
                 }
 
                 OnMapsRandomized?.RaiseEvent(CurrentVoteLevels.ToArray(), NetworkingEvents.RaiseOthers, SendOptions.SendReliable);
@@ -414,9 +411,12 @@ namespace MapVote {
 
         public static void GenerateVoteOptions(bool isInMenu = false)
         {
+            var runManager = FindObjectOfType<RunManager>();
             var levels = GetLevels(false);
+            levels.AddRange(runManager.levels.Where(l => !CurrentVoteLevels.Contains(l.name)));;
             VotePopup = MenuAPI.CreateREPOPopupPage("Next map", true, !isInMenu, 0f, isInMenu ? new Vector2(40f, 0f) : new Vector2(-100f,0f));
             // Generate Vote Options from Levels
+            var counter = 0;
             foreach (var (level, index) in levels.Select((level, index) => (level, index)))
             {
                 var name = level.name;
@@ -431,7 +431,7 @@ namespace MapVote {
                         OnVoteEvent?.RaiseEvent(name, NetworkingEvents.RaiseAll, SendOptions.SendReliable);
                     }, parent);
 
-                    if(HasBeenLastPlayed(name))
+                    if(HasBeenLastPlayed(name) || !CurrentVoteLevels.Contains(name))
                     {
                         btn.gameObject.GetComponent<MenuButton>().disabled = true;
                     }
@@ -446,37 +446,42 @@ namespace MapVote {
                     VoteOptionButtons.Add(new VoteOptionButton(name, 0, btn));
                     return btn.rectTransform;
                 });
-            }
-
-            // Generate "Random" Vote Option
-            VotePopup.AddElementToScrollView(parent =>
-            {
-                var btn = MenuAPI.CreateREPOButton(null, () => {
-                    if (DisableInput)
+                if (counter == CurrentVoteLevels.Count - 1 || (VoteableLevelNumber.Value == 0 && counter == levels.Count - 1))
+                {
+                    // Generate "Random" Vote Option
+                    VotePopup.AddElementToScrollView(parent =>
                     {
-                        return;
-                    }
-                    OwnVoteLevel = VOTE_RANDOM_LABEL;
-                    OnVoteEvent?.RaiseEvent(VOTE_RANDOM_LABEL, NetworkingEvents.RaiseAll, SendOptions.SendReliable);
-                }, parent);
+                        var btn = MenuAPI.CreateREPOButton(null, () => {
+                            if (DisableInput)
+                            {
+                                return;
+                            }
+                            OwnVoteLevel = VOTE_RANDOM_LABEL;
+                            OnVoteEvent?.RaiseEvent(VOTE_RANDOM_LABEL, NetworkingEvents.RaiseAll, SendOptions.SendReliable);
+                        }, parent);
 
-                var layoutGroup = btn.AddComponent<HorizontalLayoutGroup>();
-                layoutGroup.spacing = 235f;
+                        var layoutGroup = btn.AddComponent<HorizontalLayoutGroup>();
+                        layoutGroup.spacing = 235f;
 
-                var votesLabel = GameObject.Instantiate(btn.labelTMP.gameObject, btn.transform);
-                var lbl = votesLabel.GetComponent<TextMeshProUGUI>();
-                lbl.horizontalAlignment = HorizontalAlignmentOptions.Right;
+                        var votesLabel = GameObject.Instantiate(btn.labelTMP.gameObject, btn.transform);
+                        var lbl = votesLabel.GetComponent<TextMeshProUGUI>();
+                        lbl.horizontalAlignment = HorizontalAlignmentOptions.Right;
 
-                VoteOptionButtons.Add(new VoteOptionButton(VOTE_RANDOM_LABEL, 0, btn, true));
-                return btn.rectTransform;
-            });
+                        VoteOptionButtons.Add(new VoteOptionButton(VOTE_RANDOM_LABEL, 0, btn, true));
+                        return btn.rectTransform;
+                    });
+                }
+                counter++;
+            }
+            
         }
         
         public static void UpdateButtonLabels()
         {
             VoteOptionButtons.ForEach(b =>
             {
-                b.UpdateLabel(false, HasBeenLastPlayed(b.Level));
+                if (HasBeenLastPlayed(b.Level) || (VoteableLevelNumber.Value > 0 && !CurrentVoteLevels.Contains(b.Level) && !b.IsRandomButton)) b.Disable();
+                b.UpdateLabel();
             });
         }
 
